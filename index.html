@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Gestão Judô Poli</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login -->
+  <div class="tela-login" id="tela-login" hidden>
+    <form class="cartao-login" id="form-login">
+      <img src="img/perfil.jpg" alt="" class="avatar grande">
+      <h1>Judô Poli</h1>
+      <div class="faixa-cores" aria-hidden="true"></div>
+      <p class="dica">Acesso da gestão</p>
+      <input name="usuario" autocomplete="username" required autocapitalize="none" placeholder="Usuário" aria-label="Usuário">
+      <input name="senha" type="password" autocomplete="current-password" required placeholder="Senha" aria-label="Senha">
+      <label class="check"><input type="checkbox" name="lembrar" checked> Manter conectado</label>
+      <p class="erro" id="erro-login" hidden>Usuário ou senha incorretos.</p>
+      <button class="btn-primario">Entrar</button>
+    </form>
+  </div>
+
+  <div id="app" hidden>
+    <header class="topo">
+      <div class="topo-inner">
+        <img src="img/perfil.jpg" alt="" class="avatar">
+        <h1>Judô Poli</h1>
+        <button class="btn-editar" id="btn-editar">✏️ Editar</button>
+        <button class="btn-sair" id="btn-sair">Sair</button>
+      </div>
+    </header>
+    <!-- Contagem regressiva -->
+    <section class="interusp banner-topo" aria-label="Contagem regressiva">
+      <div>
+        <span class="interusp-rotulo">Contagem regressiva</span>
+        <h2 id="interusp-titulo">🏆 Interusp 2027</h2>
+        <span class="interusp-data" id="interusp-data"></span>
+      </div>
+      <div class="contador" id="contador">
+        <div><strong id="cd-dias">--</strong><span>dias</span></div>
+        <div><strong id="cd-horas">--</strong><span>horas</span></div>
+        <div><strong id="cd-min">--</strong><span>min</span></div>
+        <div><strong id="cd-seg">--</strong><span>seg</span></div>
+      </div>
+      <p class="contador-fim" id="contador-fim" hidden></p>
+    </section>
+    <div class="aviso-edicao so-edicao">✏️ <b>MODO EDIÇÃO</b> — altere o que precisar. Para voltar ao uso normal, toque em <b>Concluir</b>.</div>
+
+    <main>
+     <section class="topo-chamada">
+      <!-- Mês -->
+      <div class="barra-mes">
+        <button class="btn-mes" data-mes="-1" aria-label="Mês anterior">‹</button>
+        <div class="barra-mes-centro">
+          <h2 id="titulo-mes">Mês</h2>
+          <button class="btn-link" id="btn-hoje" hidden>voltar para o mês atual</button>
+        </div>
+        <button class="btn-mes" data-mes="1" aria-label="Próximo mês">›</button>
+      </div>
+
+      <div class="chamada" aria-label="Quem pagou a mensalidade">
+        <div class="chamada-titulo">💰 Mensalidades — quem já pagou?</div>
+        <div class="chamada-corpo">
+        <p class="dica" id="dica-mensal"></p>
+        <ul class="lista-pessoas" id="lista-mensal"></ul>
+        <form id="form-atleta" class="form-linha so-edicao">
+          <input name="nome" required placeholder="Novo atleta (nome ou apelido)" class="cresce">
+          <span class="campo-valor"><span class="prefixo">R$</span><input name="mensalidade" type="number" step="0.01" min="0" inputmode="decimal" required aria-label="Mensalidade"></span>
+          <button class="btn-primario">+ Atleta</button>
+        </form>
+
+        </div>
+      </div>
+     </section>
+
+     <div class="colunas">
+     <div class="lado">
+      <!-- Resumo -->
+      <section class="resumo" aria-label="Resumo do mês">
+        <div class="cartao cartao-sensei" id="cartao-sensei">
+          <span class="rotulo" id="r-sensei-rotulo">🥋 Falta para o sensei</span>
+          <strong id="r-sensei">R$ 0,00</strong>
+          <div class="progresso" aria-hidden="true"><div id="barra"></div></div>
+          <span class="detalhe" id="r-sensei-det"></span>
+        </div>
+        <div class="cartao cartao-caixa">
+          <span class="rotulo">🐷 Caixinha</span>
+          <div id="caixa-vazia" hidden>
+            <span class="detalhe">Quanto tem em caixa no começo de <b id="caixa-mes-nome"></b>?</span>
+            <form class="caixa-form" id="form-caixa-inicial">
+              <span class="prefixo">R$</span><input name="valor" type="number" step="0.01" inputmode="decimal" required placeholder="0,00" aria-label="Valor em caixa">
+              <button class="btn-primario">Salvar</button>
+            </form>
+          </div>
+          <div id="caixa-cheia" hidden>
+            <strong id="r-caixa">R$ 0,00</strong>
+            <span class="detalhe">sobra no fim do mês, já pagando o sensei</span>
+            <span class="conta" id="r-caixa-conta"></span>
+            <form class="caixa-form so-edicao" id="form-caixa-editar">
+              <span class="detalhe">Caixa no início do mês:</span>
+              <span class="prefixo">R$</span><input name="valor" type="number" step="0.01" inputmode="decimal" required aria-label="Valor em caixa no início do mês">
+              <button class="btn-primario">Corrigir</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+     </div>
+
+     <div class="conteudo">
+      <!-- Configurações (só no modo edição) -->
+      <section class="config-edicao so-edicao" aria-label="Configurações">
+        <div class="cartao">
+          <span class="rotulo">⚙️ Configurações gerais</span>
+          <form id="form-config" class="form-config">
+            <label>Salário do sensei <span class="campo-valor"><span class="prefixo">R$</span><input name="salario" type="number" step="0.01" min="0" required></span></label>
+            <label>Mensalidade padrão <span class="campo-valor"><span class="prefixo">R$</span><input name="mensalidadePadrao" type="number" step="0.01" min="0" required></span></label>
+            <label class="check"><input type="checkbox" name="extrasNaMeta"> Outras entradas também contam para o sensei</label>
+            <label>Contagem regressiva <input name="interuspTitulo" required placeholder="Nome do evento"></label>
+            <label>Data <input name="interuspData" type="date" required></label>
+            <button class="btn-primario">Salvar</button>
+          </form>
+        </div>
+        <div class="cartao">
+          <span class="rotulo">🏷️ Tipos de entrada e de gasto</span>
+          <div class="tipos">
+            <div>
+              <b class="tipos-titulo">Entradas</b>
+              <div class="chips" id="tipos-entradas"></div>
+              <form class="form-tipo" data-grupo="entradas"><input name="nome" required placeholder="Novo tipo de entrada"><button class="btn-primario">+</button></form>
+            </div>
+            <div>
+              <b class="tipos-titulo">Gastos</b>
+              <div class="chips" id="tipos-gastos"></div>
+              <form class="form-tipo" data-grupo="gastos"><input name="nome" required placeholder="Novo tipo de gasto"><button class="btn-primario">+</button></form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <nav class="abas" role="tablist">
+        <button role="tab" data-aba="pagamentos" class="ativa"><span class="ic">💵</span>Entradas e gastos</button>
+        <button role="tab" data-aba="blocos"><span class="ic">🎯</span>Arrecadações</button>
+        <button role="tab" data-aba="agenda"><span class="ic">📅</span>Agenda</button>
+        <button role="tab" data-aba="mais"><span class="ic">📊</span>Mais</button>
+      </nav>
+
+      <!-- Pagamentos -->
+      <section class="painel" id="aba-pagamentos">
+        <p class="dica">Entradas extras (camisetas, rifas, eventos…) e gastos do mês.</p>
+        <form id="form-mov" class="form-linha">
+          <select name="sinal" aria-label="Entrada ou gasto">
+            <option value="entrada">➕ Entrada</option>
+            <option value="gasto">➖ Gasto</option>
+          </select>
+          <select name="tipo" aria-label="Tipo"></select>
+          <input name="descricao" placeholder="Descrição (opcional)" class="cresce">
+          <span class="campo-valor"><span class="prefixo">R$</span><input name="valor" type="number" step="0.01" min="0.01" inputmode="decimal" required placeholder="0,00" aria-label="Valor"></span>
+          <input name="data" type="date" required aria-label="Data">
+          <button class="btn-primario">+</button>
+        </form>
+        <ul class="lista-simples" id="lista-mov"></ul>
+      </section>
+
+      <!-- Arrecadações (blocos) -->
+      <section class="painel" id="aba-blocos" hidden>
+        <p class="dica">Dinheiro com destino certo (exame de faixa, viagem, kimonos…). Fica <b>separado</b> da caixinha.
+          Cada pagamento entra no mês escolhido lá em cima e pode ser feito em partes.</p>
+        <div id="blocos"></div>
+        <form id="form-bloco" class="form-linha so-edicao">
+          <input name="nome" required placeholder="Novo bloco (ex.: Viagem Interusp)" class="cresce">
+          <span class="campo-valor"><span class="prefixo">R$</span><input name="taxa" type="number" step="0.01" min="0" inputmode="decimal" placeholder="por atleta" aria-label="Valor por atleta"></span>
+          <button class="btn-primario">+ Bloco</button>
+        </form>
+      </section>
+
+      <!-- Agenda -->
+      <section class="painel" id="aba-agenda" hidden>
+        <div class="google-barra" id="google-barra">
+          <div class="google-vista" id="google-vista" hidden>
+            <button class="btn ativo" data-vista="site">📋 Agenda do site</button>
+            <button class="btn" data-vista="google">📅 Agenda do Google</button>
+            <a class="btn-link" id="google-abrir" target="_blank" rel="noopener">abrir no Google Agenda ↗</a>
+          </div>
+          <details class="secao google-conectar" id="google-conectar">
+            <summary>🔗 Conectar com o Google Agenda</summary>
+            <ol class="passos">
+              <li>No computador, abra o <a href="https://calendar.google.com/calendar/u/0/r/settings" target="_blank" rel="noopener">Google Agenda → Configurações</a>.</li>
+              <li>À esquerda, clique na agenda da equipe (em <b>Configurações das minhas agendas</b>).</li>
+              <li>Em <b>Permissões de acesso</b>, marque <b>Disponibilizar publicamente</b> (ou compartilhe com o e-mail de cada pessoa da gestão).</li>
+              <li>Desça até <b>Integrar agenda</b>, copie o <b>ID da agenda</b> (algo como <code>...@group.calendar.google.com</code>) e cole aqui:</li>
+            </ol>
+            <form class="form-linha" id="form-google">
+              <input name="id" required class="cresce" placeholder="ID da agenda, link ou código de incorporação" aria-label="ID da agenda do Google">
+              <button class="btn-primario">Conectar</button>
+              <button type="button" class="btn-link perigo" id="google-desconectar" hidden>Desconectar</button>
+            </form>
+            <p class="dica pequena">Depois de conectar, a agenda do Google aparece aqui no site e o botão <b>📅 Google</b> de cada evento já salva nela.</p>
+          </details>
+        </div>
+        <iframe class="google-frame" id="google-frame" title="Agenda do Google" hidden loading="lazy"></iframe>
+        <div id="agenda-site">
+        <div class="calendario" id="calendario"></div>
+        <form id="form-evento" class="form-linha">
+          <input name="titulo" required placeholder="Novo evento" class="cresce">
+          <input name="data" type="date" required aria-label="Data">
+          <input name="hora" type="time" aria-label="Horário (opcional)" title="Horário (opcional)">
+          <button class="btn-primario">+</button>
+        </form>
+        <ul class="lista-simples" id="lista-eventos"></ul>
+        <p class="dica pequena">Toque num dia para escolher a data. <b>📅 Google</b> salva o evento na sua agenda.
+          <button class="btn-link" id="btn-ics">Baixar todos do mês (.ics)</button></p>
+        </div>
+      </section>
+
+      <!-- Mais -->
+      <section class="painel" id="aba-mais" hidden>
+        <details class="secao" open>
+          <summary id="titulo-anual">📊 Resumo do ano</summary>
+          <div class="tabela-wrap">
+            <table class="tabela-anual">
+              <thead><tr><th>Mês</th><th class="num">Pagaram</th><th class="num">Entrou</th><th class="num">Gastos</th><th class="num">Sensei</th><th class="num">Caixinha</th></tr></thead>
+              <tbody id="tb-anual"></tbody>
+            </table>
+          </div>
+          <p class="dica pequena">Quem pagou em cada mês (toque para marcar/desmarcar):</p>
+          <div class="tabela-wrap">
+            <table class="grade">
+              <thead id="th-grade"></thead>
+              <tbody id="tb-grade"></tbody>
+            </table>
+          </div>
+        </details>
+        <details class="secao">
+          <summary>📸 Fotos</summary>
+          <a class="btn" href="https://www.instagram.com/judopoliusp/" target="_blank" rel="noopener">Instagram @judopoliusp</a>
+          <div class="galeria" id="galeria"></div>
+        </details>
+        <details class="secao">
+          <summary>💾 Backup</summary>
+          <p class="dica">Os dados ficam salvos neste navegador. Baixe um backup de vez em quando.</p>
+          <div class="acoes">
+            <button class="btn" id="btn-exportar">⬇️ Baixar backup</button>
+            <label class="btn so-edicao">⬆️ Importar backup<input type="file" id="inp-importar" accept="application/json,.json" hidden></label>
+          </div>
+        </details>
+      </section>
+     </div>
+     </div>
+    </main>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
