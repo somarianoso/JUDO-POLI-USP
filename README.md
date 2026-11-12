@@ -39,22 +39,55 @@ Toda vez que você der `git push` na `main`, o site é atualizado sozinho (acomp
 
 - O arquivo `.nojekyll` faz o GitHub servir os arquivos direto, sem processar com Jekyll.
 - Todos os caminhos são relativos (`img/...`, `style.css`), então o site funciona dentro da subpasta `/JUDO-POLI-USP/`.
-- Os dados do site publicado ficam separados dos dados do localhost (são endereços diferentes).
-  Para levar o que você já cadastrou, use **⚙️ Mais → Backup**: baixe no localhost e importe no site publicado.
+- Os dados vêm do `dados.enc.json` (veja **Login e dados criptografados**); sem esse arquivo ninguém consegue entrar.
 
-## Login
+## Login e dados criptografados
 
-- **Usuário:** `gestão` (ou `gestao`) · **Senha:** combinada com a gestão (não fica escrita aqui, porque o repositório é público).
-- "Manter conectado" lembra o login naquele aparelho; o botão **Sair** desconecta.
+Os dados da equipe (atletas, mensalidades, caixinha…) ficam no arquivo **`dados.enc.json`**, **criptografado com a senha**
+(AES-256-GCM, chave derivada da senha com PBKDF2-SHA256, 600 mil iterações). O repositório e o site são públicos,
+mas sem a senha o arquivo é ilegível. O login funciona tentando abrir esse arquivo: senha errada não abre nada.
 
-⚠️ O login é só uma "porta" para quem cair no site sem querer. Como o site não tem servidor, ele **não é segurança de verdade**:
-quem souber mexer no código do navegador consegue passar. Não guarde dados sensíveis aqui.
+- **Usuário:** `gestão` (ou `gestao`) · **Senha:** combinada com a gestão (não fica escrita aqui).
+- "Manter conectado" guarda a chave de acesso naquele aparelho; o botão **Sair** apaga essa chave.
+- A senha precisa ser **forte** (pelo menos 14 caracteres; ex.: 4 ou 5 palavras aleatórias), porque qualquer pessoa
+  pode baixar o arquivo e tentar adivinhar a senha no próprio computador.
 
-Para trocar a senha, gere o novo código e substitua `AUTH_HASH` no `app.js`:
+### Primeira vez / trocar a senha
 
-```bash
-python3 -c "import hashlib;print(hashlib.sha256('gestao:NOVASENHA'.encode()).hexdigest())"
-```
+Precisa do [Node.js](https://nodejs.org) 20 ou mais novo.
+
+1. Baixe um backup: **⚙️ Mais → Backup → Baixar backup**. Se ainda não existe `dados.enc.json`, tente entrar no
+   **http://localhost:8000**: vai aparecer o botão **⬇️ Baixar backup deste navegador** na tela de login.
+2. Gere uma senha forte (ou use uma sua, com pelo menos 14 caracteres):
+
+   ```bash
+   node ferramentas/gerar-senha.mjs
+   ```
+
+   Anote num lugar seguro (ex.: gerenciador de senhas) e passe para a gestão por mensagem privada.
+3. Na pasta do projeto, rode o comando abaixo e digite o usuário e a senha nova (a senha não aparece enquanto você digita):
+
+   ```bash
+   node ferramentas/criptografar.mjs ~/Downloads/judo-backup-AAAA-MM-DD.json
+   ```
+
+   No WSL, a pasta Downloads do Windows fica em `/mnt/c/Users/SEU_USUARIO/Downloads/`.
+4. Publique: `git add dados.enc.json && git commit -m "atualiza dados" && git push`
+5. Apague o backup sem criptografia do computador (e **nunca** faça commit dele; o `.gitignore` já bloqueia `*backup*.json`).
+
+Ao trocar a senha, todos os aparelhos precisam entrar de novo com a senha nova.
+
+### Publicar alterações para todos
+
+O que você muda no site fica salvo **só no seu navegador** até ser publicado:
+
+1. Ligue **✏️ Editar** e vá em **⚙️ Mais → Backup → 🔒 Gerar arquivo para publicar**. O navegador baixa um `dados.enc.json` novo
+   (já criptografado com a mesma senha).
+2. Coloque esse arquivo na pasta do projeto, substituindo o antigo (se o navegador salvou como `dados.enc (1).json`, renomeie).
+3. `git add dados.enc.json && git commit -m "atualiza dados" && git push`
+
+Quando alguém entrar ou abrir o site depois disso, recebe a versão nova. Se aquele aparelho tiver alterações
+que ainda não foram publicadas, o site pergunta se quer substituir pela versão publicada ou manter as alterações dele.
 
 ## Como usar
 
@@ -78,8 +111,8 @@ Abas:
 
 ## Onde ficam os dados
 
-Os dados ficam guardados **no navegador** (localStorage) do aparelho em que você usa o site. Eles não são compartilhados
-entre aparelhos e podem ser perdidos se você limpar os dados do navegador. Use **⚙️ Mais → Backup** de vez em quando.
+A versão "oficial" é o `dados.enc.json` publicado (criptografado). Cada navegador guarda uma cópia (localStorage) para usar
+e editar; essa cópia só vai para os outros aparelhos depois de **publicar** (veja acima). Use **⚙️ Mais → Backup** de vez em quando.
 
 ## Personalizar
 

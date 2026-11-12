@@ -1,0 +1,3 @@
+# Backups sem criptografia: NUNCA publicar
+judo-backup-*.json
+*backup*.json

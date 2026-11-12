@@ -5,18 +5,17 @@
    ========================================================= */
 
 const STORAGE_KEY = 'judo-poli-usp-v1';
-const AUTH_KEY = 'judo-poli-auth';
 const EDIT_KEY = 'judo-poli-edicao';
-// SHA-256 de "usuario:senha" (usuário sem acento e em minúsculas). Para trocar a senha, veja o README.
-const AUTH_HASH = 'e932ed910bde6491cb9874491eb4c81a777b79c2c6e78ac5d5ec661e4f37a379';
+// Dados publicados, criptografados com a senha (AES-GCM, chave derivada por PBKDF2). Veja o README.
+const DADOS_URL = 'dados.enc.json';
+const CHAVE_KEY = 'judo-poli-chave';     // chave de acesso guardada após o login ("manter conectado")
+const BASE_KEY = 'judo-poli-base';       // data da versão publicada que está neste navegador
+const ALTERADO_KEY = 'judo-poli-alterado'; // '1' se houve mudanças aqui depois dessa versão
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MENSALIDADE_PADRAO = 90;
-const ATLETAS_INICIAIS = [
-  'Thiago', 'Iza', 'Curi', 'Alencar', 'Ita', 'Miguel',
-  'Patrick', 'Nakamura', 'Mari', 'Soso', 'Leo Musa', 'Leo Maozinha',
-];
+const ATLETAS_INICIAIS = []; // a lista de atletas fica nos dados criptografados
 const TIPOS_PADRAO = {
   entradas: ['Camiseta', 'Kimono', 'Rifa', 'Evento', 'Doação', 'Outro'],
   gastos: ['Material de treino', 'Compra de camisetas', 'Transporte', 'Inscrição em campeonato', 'Outro'],
@@ -74,64 +73,122 @@ function aviso(msg) {
   toastTimer = setTimeout(() => t.classList.remove('visivel'), 2600);
 }
 
-/* ---------- SHA-256 (funciona também abrindo o arquivo direto, sem servidor) ---------- */
-function sha256Hex(texto) {
-  const bytes = new TextEncoder().encode(texto);
-  const K = [], H = [];
-  const frac = (x) => ((x - Math.floor(x)) * 4294967296) | 0;
-  for (let n = 2, c = 0; c < 64; n++) {
-    let primo = true;
-    for (let d = 2; d * d <= n; d++) if (n % d === 0) { primo = false; break; }
-    if (primo) { if (c < 8) H[c] = frac(Math.sqrt(n)); K[c] = frac(Math.cbrt(n)); c++; }
-  }
-  const len = bytes.length, total = ((len + 9 + 63) >> 6) << 6;
-  const m = new Uint8Array(total);
-  m.set(bytes); m[len] = 0x80;
-  const dv = new DataView(m.buffer);
-  dv.setUint32(total - 4, (len * 8) >>> 0);
-  dv.setUint32(total - 8, Math.floor((len * 8) / 4294967296));
-  const w = new Int32Array(64);
-  const rotr = (x, r) => (x >>> r) | (x << (32 - r));
-  for (let i = 0; i < total; i += 64) {
-    for (let t = 0; t < 16; t++) w[t] = dv.getInt32(i + t * 4);
-    for (let t = 16; t < 64; t++) {
-      const s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
-      const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
-      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
-    }
-    let [a, b, c, d, e, f, g, h] = H;
-    for (let t = 0; t < 64; t++) {
-      const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + w[t]) | 0;
-      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
-      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
-    }
-    [a, b, c, d, e, f, g, h].forEach((v, k) => { H[k] = (H[k] + v) | 0; });
-  }
-  return H.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('');
+/* ---------- criptografia (mesmo formato de ferramentas/criptografar.mjs) ---------- */
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const deB64 = (txt) => Uint8Array.from(atob(txt), (c) => c.charCodeAt(0));
+
+async function derivarChave(usuario, senha, salt, iter) {
+  const base = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(`${normalizarUsuario(usuario)}:${senha}`), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter },
+    base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+async function descriptografar(arq, chave) {
+  const claro = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: deB64(arq.iv) }, chave, deB64(arq.dados));
+  return JSON.parse(new TextDecoder().decode(claro));
+}
+async function criptografar(dados, chave, salt, iter) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cifrado = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, chave, new TextEncoder().encode(JSON.stringify(dados)));
+  return { formato: 'judo-poli-enc', v: 1, kdf: 'PBKDF2-SHA256', iter, salt: b64(salt), iv: b64(iv),
+    geradoEm: new Date().toISOString(), dados: b64(cifrado) };
+}
+async function buscarPublicado() {
+  const r = await fetch(`${DADOS_URL}?t=${Date.now()}`, { cache: 'no-store' });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
 /* ---------- login ---------- */
 const normalizarUsuario = (u) => u.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-function lerToken() {
-  try { return localStorage.getItem(AUTH_KEY) || sessionStorage.getItem(AUTH_KEY); } catch { return null; }
+let sessao = null; // { chave: CryptoKey, salt: Uint8Array, iter }
+
+const lerStorage = (k) => { try { return localStorage.getItem(k) ?? sessionStorage.getItem(k); } catch { return null; } };
+const gravarLocal = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem storage */ } };
+
+async function guardarChave(lembrar) {
+  const jwk = await crypto.subtle.exportKey('jwk', sessao.chave);
+  const txt = JSON.stringify({ jwk, salt: b64(sessao.salt), iter: sessao.iter });
+  try { (lembrar ? localStorage : sessionStorage).setItem(CHAVE_KEY, txt); } catch { /* sem storage */ }
+}
+async function lerChaveGuardada() {
+  const txt = lerStorage(CHAVE_KEY);
+  if (!txt) return null;
+  try {
+    const { jwk, salt, iter } = JSON.parse(txt);
+    const chave = await crypto.subtle.importKey('jwk', jwk, 'AES-GCM', true, ['encrypt', 'decrypt']);
+    return { chave, salt: deB64(salt), iter };
+  } catch { return null; }
+}
+function esquecerChave() {
+  try { localStorage.removeItem(CHAVE_KEY); sessionStorage.removeItem(CHAVE_KEY); } catch { /* ok */ }
 }
 
-$('#form-login').addEventListener('submit', (e) => {
+// Traz para este navegador a versão publicada, se for mais nova do que a que já está aqui
+function aplicarPublicado(arq, conteudo) {
+  if (lerStorage(BASE_KEY) === arq.geradoEm) return;
+  if (lerStorage(ALTERADO_KEY) === '1' && !confirm(
+    'Há uma versão nova dos dados publicada, mas este aparelho tem alterações que ainda não foram publicadas.\n\n'
+    + 'OK = usar a versão publicada (as alterações deste aparelho serão perdidas)\n'
+    + 'Cancelar = manter as alterações deste aparelho por enquanto')) return;
+  estado = normalizar(conteudo.estado);
+  estado.settings.iniciaisCadastrados = true;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch { /* sem storage */ }
+  gravarLocal(BASE_KEY, arq.geradoEm);
+  gravarLocal(ALTERADO_KEY, '0');
+  if (appIniciado) renderTudo();
+}
+
+function erroLogin(msg) {
+  const e = $('#erro-login');
+  e.textContent = msg; e.hidden = false;
+}
+
+$('#form-login').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
-  const hash = sha256Hex(`${normalizarUsuario(f.usuario.value)}:${f.senha.value}`);
-  if (hash !== AUTH_HASH) {
-    $('#erro-login').hidden = false;
-    f.senha.value = ''; f.senha.focus();
-    return;
-  }
-  try { (f.lembrar.checked ? localStorage : sessionStorage).setItem(AUTH_KEY, hash); } catch { /* sem storage */ }
-  f.reset();
+  const btn = f.querySelector('.btn-primario');
+  btn.disabled = true; btn.textContent = 'Entrando…';
   $('#erro-login').hidden = true;
-  entrar();
+  try {
+    const arq = await buscarPublicado();
+    if (!arq) {
+      mostrarSemDados();
+      return;
+    }
+    const salt = deB64(arq.salt);
+    const chave = await derivarChave(f.usuario.value, f.senha.value, salt, arq.iter);
+    let conteudo;
+    try { conteudo = await descriptografar(arq, chave); } catch {
+      erroLogin('Usuário ou senha incorretos.');
+      f.senha.value = ''; f.senha.focus();
+      return;
+    }
+    sessao = { chave, salt, iter: arq.iter };
+    await guardarChave(f.lembrar.checked);
+    f.reset();
+    aplicarPublicado(arq, conteudo);
+    entrar();
+  } catch {
+    erroLogin('Não foi possível carregar os dados. Verifique a internet e tente de novo.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+});
+// Primeira configuração: deixa baixar o que já está salvo NESTE navegador para gerar o arquivo criptografado
+function mostrarSemDados() {
+  erroLogin('Os dados ainda não foram publicados (falta o arquivo dados.enc.json). Baixe o backup abaixo e veja o README.');
+  $('#btn-backup-local').hidden = false;
+}
+$('#btn-backup-local').addEventListener('click', () => {
+  baixar(`judo-backup-${hojeISO()}.json`, JSON.stringify(estado, null, 2), 'application/json');
 });
 $('#btn-sair').addEventListener('click', () => {
-  try { localStorage.removeItem(AUTH_KEY); sessionStorage.removeItem(AUTH_KEY); } catch { /* ok */ }
+  esquecerChave();
+  sessao = null;
   definirEdicao(false);
   $('#app').hidden = true;
   $('#tela-login').hidden = false;
@@ -199,6 +256,7 @@ function carregar() {
 function salvar() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+    localStorage.setItem(ALTERADO_KEY, '1');
   } catch {
     aviso('Não foi possível salvar no navegador. Faça um backup!');
   }
@@ -814,6 +872,14 @@ function iniciarApp() {
   $('#btn-exportar').addEventListener('click', () => {
     baixar(`judo-backup-${hojeISO()}.json`, JSON.stringify(estado, null, 2), 'application/json');
   });
+  $('#btn-publicar').addEventListener('click', async () => {
+    if (!sessao) { aviso('Entre de novo para gerar o arquivo'); return; }
+    const arq = await criptografar({ estado }, sessao.chave, sessao.salt, sessao.iter);
+    baixar(DADOS_URL, JSON.stringify(arq), 'application/json');
+    gravarLocal(BASE_KEY, arq.geradoEm);
+    gravarLocal(ALTERADO_KEY, '0');
+    aviso('Arquivo gerado. Coloque na pasta do site e publique (git push).');
+  });
   $('#inp-importar').addEventListener('change', async (e) => {
     const arq = e.target.files[0];
     e.target.value = '';
@@ -893,5 +959,22 @@ function iniciarGaleria() {
 }
 
 /* ---------- início ---------- */
-if (lerToken() === AUTH_HASH) entrar();
-else $('#tela-login').hidden = false;
+(async function iniciar() {
+  try { localStorage.removeItem('judo-poli-auth'); sessionStorage.removeItem('judo-poli-auth'); } catch { /* login antigo */ }
+  const guardada = await lerChaveGuardada();
+  if (!guardada) {
+    $('#tela-login').hidden = false;
+    try { if (await buscarPublicado() === null) mostrarSemDados(); } catch { /* sem internet */ }
+    return;
+  }
+  let arq;
+  try { arq = await buscarPublicado(); } catch { arq = undefined; } // sem internet: usa os dados deste aparelho
+  if (arq) {
+    if (arq.salt !== b64(guardada.salt)) { esquecerChave(); $('#tela-login').hidden = false; return; } // senha trocada
+    try { aplicarPublicado(arq, await descriptografar(arq, guardada.chave)); } catch {
+      esquecerChave(); $('#tela-login').hidden = false; return;
+    }
+  } else if (arq === null) { esquecerChave(); $('#tela-login').hidden = false; return; }
+  sessao = guardada;
+  entrar();
+}());
